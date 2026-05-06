@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>AsynapRous Chat</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      background: #f0f2f5;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── top bar ── */
+    #topbar {
+      background: #1F4E79;
+      color: #fff;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 6px rgba(0,0,0,.25);
+    }
+    #topbar h1 { font-size: 18px; font-weight: 600; }
+    #topbar span { font-size: 13px; opacity: .8; }
+    #peer-id-display { font-size: 12px; background: rgba(255,255,255,.15);
+      padding: 4px 10px; border-radius: 20px; }
+
+    /* ── main layout ── */
+    #main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── left sidebar: channel / peer list ── */
+    #sidebar {
+      width: 220px;
+      background: #fff;
+      border-right: 1px solid #dde1e7;
+      display: flex;
+      flex-direction: column;
+    }
+    #sidebar h2 {
+      font-size: 13px;
+      font-weight: 700;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      padding: 14px 16px 8px;
+      border-bottom: 1px solid #eee;
+    }
+    #peer-list { flex: 1; overflow-y: auto; }
+    .peer-item {
+      padding: 10px 16px;
+      cursor: pointer;
+      border-bottom: 1px solid #f4f4f4;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      transition: background .15s;
+    }
+    .peer-item:hover { background: #f0f4ff; }
+    .peer-item.active { background: #deeaf1; font-weight: 600; }
+    .peer-item .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #34c759; flex-shrink: 0;
+    }
+    .peer-item.broadcast .dot { background: #1F4E79; }
+    #refresh-btn {
+      margin: 10px 12px;
+      padding: 7px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      background: #f8f8f8;
+      cursor: pointer;
+      font-size: 13px;
+      color: #333;
+    }
+    #refresh-btn:hover { background: #e8eaf0; }
+
+    /* ── right panel: message window ── */
+    #chat-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #chat-header {
+      padding: 12px 18px;
+      background: #fff;
+      border-bottom: 1px solid #dde1e7;
+      font-size: 15px;
+      font-weight: 600;
+      color: #1F4E79;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    #chat-header .channel-dot {
+      width: 10px; height: 10px; border-radius: 50%; background: #1F4E79;
+    }
+
+    /* scrollable message window */
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .msg-row {
+      display: flex;
+      flex-direction: column;
+      max-width: 70%;
+    }
+    .msg-row.mine { align-self: flex-end; align-items: flex-end; }
+    .msg-row.theirs { align-self: flex-start; align-items: flex-start; }
+    .msg-bubble {
+      padding: 9px 14px;
+      border-radius: 16px;
+      font-size: 14px;
+      line-height: 1.4;
+      word-break: break-word;
+    }
+    .mine .msg-bubble {
+      background: #1F4E79;
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+    .theirs .msg-bubble {
+      background: #fff;
+      color: #222;
+      border: 1px solid #e0e0e0;
+      border-bottom-left-radius: 4px;
+    }
+    .msg-meta {
+      font-size: 11px;
+      color: #999;
+      margin-top: 3px;
+      padding: 0 4px;
+    }
+    #no-messages {
+      text-align: center;
+      color: #aaa;
+      font-size: 14px;
+      margin-top: 40px;
+    }
+
+    /* notification badge */
+    .badge {
+      background: #e74c3c;
+      color: #fff;
+      border-radius: 10px;
+      padding: 1px 7px;
+      font-size: 11px;
+      font-weight: 700;
+      margin-left: auto;
+    }
+
+    /* ── input bar ── */
+    #input-bar {
+      padding: 12px 16px;
+      background: #fff;
+      border-top: 1px solid #dde1e7;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    #msg-input {
+      flex: 1;
+      padding: 10px 14px;
+      border: 1px solid #ccc;
+      border-radius: 22px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color .2s;
+    }
+    #msg-input:focus { border-color: #1F4E79; }
+    #send-btn {
+      padding: 10px 20px;
+      background: #1F4E79;
+      color: #fff;
+      border: none;
+      border-radius: 22px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background .2s;
+    }
+    #send-btn:hover { background: #2e74b5; }
+    #send-btn:disabled { background: #aaa; cursor: not-allowed; }
+
+    /* notification toast */
+    #toast {
+      position: fixed;
+      bottom: 80px;
+      right: 24px;
+      background: #1F4E79;
+      color: #fff;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 14px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .3s;
+      z-index: 999;
+    }
+    #toast.show { opacity: 1; }
+
+    /* status bar */
+    #status-bar {
+      font-size: 12px;
+      color: #888;
+      padding: 4px 18px;
+      background: #fafafa;
+      border-top: 1px solid #eee;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div id="topbar">
+  <h1>&#128172; AsynapRous Chat</h1>
+  <div id="peer-id-display">My peer: <span id="my-peer-id">–</span></div>
+</div>
+
+<!-- Main -->
+<div id="main">
+
+  <!-- Sidebar -->
+  <div id="sidebar">
+    <h2>Channels / Peers</h2>
+    <div id="peer-list">
+      <!-- broadcast channel always present -->
+      <div class="peer-item broadcast active" data-target="broadcast" onclick="selectChannel(this)">
+        <div class="dot"></div>
+        <span># broadcast</span>
+      </div>
+    </div>
+    <button id="refresh-btn" onclick="refreshPeers()">&#8635; Refresh peers</button>
+  </div>
+
+  <!-- Chat panel -->
+  <div id="chat-panel">
+    <div id="chat-header">
+      <div class="channel-dot"></div>
+      <span id="channel-title"># broadcast</span>
+    </div>
+
+    <div id="messages">
+      <div id="no-messages">No messages yet. Say hello!</div>
+    </div>
+
+    <div id="input-bar">
+      <input id="msg-input" type="text" placeholder="Type a message…"
+             onkeydown="if(event.key==='Enter') sendMessage()"/>
+      <button id="send-btn" onclick="sendMessage()">Send</button>
+    </div>
+    <div id="status-bar" id="status-bar">Ready</div>
+  </div>
+
+</div>
+
+<!-- Notification toast -->
+<div id="toast"></div>
+
+<script>
+  // ── state ──────────────────────────────────────────────────────────
+  const MY_PORT  = location.port || '9001';
+  const MY_IP    = location.hostname || '127.0.0.1';
+  const BASE_URL = (location.origin && location.origin !== 'null')
+    ? location.origin
+    : 'http://' + MY_IP + ':' + MY_PORT;   // fallback for file:// loads or undefined origins
+
+  let currentTarget = 'broadcast';   // 'broadcast' or 'ip:port'
+  let peers = [];
+  // messages keyed by channel id ('broadcast' or 'ip:port')
+  const channelMessages = { broadcast: [] };
+  // unread counts
+  const unread = {};
+
+  document.getElementById('my-peer-id').textContent = MY_IP + ':' + MY_PORT;
+
+  // ── channel selection ──────────────────────────────────────────────
+  function selectChannel(el) {
+    document.querySelectorAll('.peer-item').forEach(i => i.classList.remove('active'));
+    el.classList.add('active');
+    currentTarget = el.dataset.target;
+
+    const title = el.querySelector('span').textContent;
+    document.getElementById('channel-title').textContent = title;
+
+    // Clear unread badge
+    const badge = el.querySelector('.badge');
+    if (badge) badge.remove();
+    unread[currentTarget] = 0;
+
+    renderMessages();
+    document.getElementById('msg-input').focus();
+  }
+
+  // ── render messages ────────────────────────────────────────────────
+  function renderMessages() {
+    const box = document.getElementById('messages');
+    const msgs = channelMessages[currentTarget] || [];
+    if (msgs.length === 0) {
+      box.innerHTML = '<div id="no-messages">No messages yet. Say hello!</div>';
+      return;
+    }
+    box.innerHTML = msgs.map(m => {
+      const cls = m.mine ? 'mine' : 'theirs';
+      return `<div class="msg-row ${cls}">
+        <div class="msg-bubble">${escHtml(m.text)}</div>
+        <div class="msg-meta">${escHtml(m.sender)} &middot; ${m.time}</div>
+      </div>`;
+    }).join('');
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function escHtml(s) {
+    return String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function now() {
+    return new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  }
+
+  // ── add message to a channel ────────────────────────────────────────
+  function addMessage(channel, text, sender, mine) {
+    if (!channelMessages[channel]) channelMessages[channel] = [];
+    channelMessages[channel].push({ text, sender, mine, time: now() });
+    if (channel === currentTarget) {
+      renderMessages();
+    } else {
+      // show unread badge + toast notification
+      unread[channel] = (unread[channel] || 0) + 1;
+      const el = document.querySelector(`.peer-item[data-target="${channel}"]`);
+      if (el) {
+        let badge = el.querySelector('.badge');
+        if (!badge) { badge = document.createElement('span'); badge.className='badge'; el.appendChild(badge); }
+        badge.textContent = unread[channel];
+      }
+      showToast('New message from ' + sender);
+    }
+  }
+
+  // ── toast notification ──────────────────────────────────────────────
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = '🔔 ' + msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3000);
+  }
+
+  // ── send message ────────────────────────────────────────────────────
+  function sendMessage() {
+    const input = document.getElementById('msg-input');
+    const text = input.value.trim();
+    if (!text) return;
+
+    const btn = document.getElementById('send-btn');
+    btn.disabled = true;
+    setStatus('Sending…');
+
+    const body = currentTarget === 'broadcast'
+      ? { message: text, type: 'broadcast' }
+      : { message: text, type: 'direct',
+          target_ip: currentTarget.split(':')[0],
+          target_port: parseInt(currentTarget.split(':')[1]) };
+
+    fetch(BASE_URL + '/local-send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.status === 'sent') {
+        addMessage(currentTarget, text, 'Me', true);
+        input.value = '';
+        setStatus('Sent ✓');
+      } else {
+        setStatus('Error: ' + JSON.stringify(data));
+      }
+    })
+    .catch(e => setStatus('Error: ' + e.message))
+    .finally(() => { btn.disabled = false; });
+  }
+
+  // ── refresh peer list ───────────────────────────────────────────────
+  function refreshPeers() {
+    setStatus('Refreshing peers…');
+    fetch(BASE_URL + '/get-peers', { method: 'GET' })
+      .then(r => {
+        if (!r.ok) {
+          throw new Error('HTTP ' + r.status + ': ' + r.statusText);
+        }
+        return r.text();
+      })
+      .then(text => {
+        try {
+          const data = JSON.parse(text);
+          peers = (data.peers || []).filter(p => !(p.ip === MY_IP && String(p.port) === MY_PORT));
+          buildPeerList();
+          setStatus('Found ' + peers.length + ' peer(s)');
+        } catch (parseError) {
+          console.error('JSON parse error:', parseError);
+          console.error('Response text:', text);
+          setStatus('Error parsing response: ' + parseError.message);
+        }
+      })
+      .catch(e => {
+        console.error('Fetch error:', e);
+        setStatus('Could not refresh: ' + e.message);
+      });
+  }
+
+  function buildPeerList() {
+    const list = document.getElementById('peer-list');
+    // keep broadcast row
+    list.innerHTML = `<div class="peer-item broadcast ${currentTarget==='broadcast'?'active':''}"
+        data-target="broadcast" onclick="selectChannel(this)">
+      <div class="dot"></div><span># broadcast</span>
+    </div>`;
+
+    peers.forEach(p => {
+      const key = p.ip + ':' + p.port;
+      if (!channelMessages[key]) channelMessages[key] = [];
+      const isActive = currentTarget === key;
+      const badgeHtml = (unread[key]||0) > 0 ? `<span class="badge">${unread[key]}</span>` : '';
+      list.innerHTML += `<div class="peer-item ${isActive?'active':''}"
+          data-target="${key}" onclick="selectChannel(this)">
+        <div class="dot"></div><span>${key}</span>${badgeHtml}
+      </div>`;
+    });
+  }
+
+  // ── /get-peers endpoint shim (poll p2papp's active_peers) ──────────
+  // p2papp exposes active peers through a simple GET endpoint we add below
+
+  // ── poll for incoming messages ──────────────────────────────────────
+  // Since messages arrive via /send-peer and /broadcast-peer on the backend,
+  // we poll /get-messages to fetch new ones the server has buffered.
+  let lastMsgIndex = { broadcast: 0 };
+
+  function pollMessages() {
+    fetch(BASE_URL + '/get-messages', { method: 'GET' })
+      .then(r => r.json())
+      .then(data => {
+        (data.messages || []).forEach(m => {
+          const ch = m.channel || 'broadcast';
+          addMessage(ch, m.text, m.sender, false);
+        });
+      })
+      .catch(() => {});  // silent – endpoint may not exist in all modes
+  }
+
+  setInterval(pollMessages, 2000);
+  setInterval(refreshPeers, 15000);
+
+  function setStatus(msg) {
+    document.getElementById('status-bar').textContent = msg;
+  }
+
+  // Initial load
+  refreshPeers();
+</script>
+</body>
+</html>
